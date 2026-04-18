@@ -20,16 +20,49 @@ enum CoachMarkStyle { classic, compact }
 /// so the user visually connects the hint to the feature. Tap outside or
 /// "Got it" to dismiss.
 class DiscoveryCoachMark {
-  final Color primaryColor;
-  final Color backgroundColor;
-  final Color border;
-  final Color icon;
+  /// Fill color of the bubble body. Also used as the arrow color unless
+  /// [arrowColor] is provided.
+  final Color bubbleColor;
+
+  /// Border color around the compact bubble.
+  final Color bubbleBorderColor;
+
+  /// Arrow color. Defaults to [bubbleColor] so the arrow blends into the
+  /// bubble.
+  final Color? arrowColor;
+
+  /// Color of the bubble's title text.
+  final Color titleColor;
+
+  /// Color of the bubble's message text.
+  final Color messageColor;
+
+  /// Fill color of the classic style's "Got it" pill.
+  final Color dismissButtonColor;
+
+  /// Text color of the classic style's "Got it" pill.
+  final Color dismissButtonTextColor;
+
+  /// Color of the compact style's close (✕) icon.
+  final Color closeIconColor;
+
+  /// Scrim color covering the rest of the screen.
+  final Color scrimColor;
+
+  /// Drop-shadow color behind the bubble.
+  final Color bubbleShadowColor;
 
   const DiscoveryCoachMark({
-    required this.primaryColor,
-    required this.backgroundColor,
-    required this.border,
-    required this.icon,
+    required this.bubbleColor,
+    this.bubbleBorderColor = const Color(0x33FFFFFF),
+    this.arrowColor,
+    this.titleColor = Colors.white,
+    this.messageColor = Colors.white,
+    this.dismissButtonColor = const Color(0x2EFFFFFF),
+    this.dismissButtonTextColor = Colors.white,
+    this.closeIconColor = Colors.white,
+    this.scrimColor = const Color(0x8C000000),
+    this.bubbleShadowColor = const Color(0x38000000),
   });
 
   /// Returns `true` if the overlay was actually shown, `false` if the anchor
@@ -47,10 +80,11 @@ class DiscoveryCoachMark {
     final screenSize = MediaQuery.of(context).size;
 
     // Poll the registry until the anchor is mounted, on-screen, AND stable
-    // for two consecutive frames. Food / meal detail sheets animate in, so
-    // the anchor's rect changes every frame during the transition — grabbing
-    // a rect mid-animation leaves the highlight in the wrong place. Waiting
-    // for the rect to stop moving guarantees the route finished animating.
+    // for two consecutive frames. Routes that animate in (bottom sheets,
+    // modal pages, hero transitions) change the anchor's rect every frame
+    // during the transition — grabbing a rect mid-animation leaves the
+    // highlight in the wrong place. Waiting for the rect to stop moving
+    // guarantees the route finished animating.
     const pollInterval = Duration(milliseconds: 50);
     const pollTimeout = Duration(milliseconds: 2000);
     const stableRequired = 2;
@@ -115,10 +149,16 @@ class DiscoveryCoachMark {
           completer.done = true;
           entry.remove();
         },
-        primaryColor: primaryColor,
-        backgroundColor: backgroundColor,
-        border: border,
-        icon: icon,
+        bubbleColor: bubbleColor,
+        bubbleBorderColor: bubbleBorderColor,
+        arrowColor: arrowColor ?? bubbleColor,
+        titleColor: titleColor,
+        messageColor: messageColor,
+        dismissButtonColor: dismissButtonColor,
+        dismissButtonTextColor: dismissButtonTextColor,
+        closeIconColor: closeIconColor,
+        scrimColor: scrimColor,
+        bubbleShadowColor: bubbleShadowColor,
       ),
     );
     overlay.insert(entry);
@@ -151,10 +191,16 @@ class _CoachMarkLayer extends StatelessWidget {
   final String dismissLabel;
   final CoachMarkStyle style;
   final VoidCallback onDismiss;
-  final Color primaryColor;
-  final Color backgroundColor;
-  final Color border;
-  final Color icon;
+  final Color bubbleColor;
+  final Color bubbleBorderColor;
+  final Color arrowColor;
+  final Color titleColor;
+  final Color messageColor;
+  final Color dismissButtonColor;
+  final Color dismissButtonTextColor;
+  final Color closeIconColor;
+  final Color scrimColor;
+  final Color bubbleShadowColor;
 
   const _CoachMarkLayer({
     required this.anchorRect,
@@ -163,10 +209,16 @@ class _CoachMarkLayer extends StatelessWidget {
     required this.dismissLabel,
     required this.style,
     required this.onDismiss,
-    required this.primaryColor,
-    required this.backgroundColor,
-    required this.border,
-    required this.icon,
+    required this.bubbleColor,
+    required this.bubbleBorderColor,
+    required this.arrowColor,
+    required this.titleColor,
+    required this.messageColor,
+    required this.dismissButtonColor,
+    required this.dismissButtonTextColor,
+    required this.closeIconColor,
+    required this.scrimColor,
+    required this.bubbleShadowColor,
     this.title,
   });
 
@@ -206,7 +258,10 @@ class _CoachMarkLayer extends StatelessWidget {
             onTap: onDismiss,
             child: CustomPaint(
               size: Size(screen.width, screen.height),
-              painter: _ScrimPainter(highlight: highlight),
+              painter: _ScrimPainter(
+                highlight: highlight,
+                scrimColor: scrimColor,
+              ),
             ),
           ),
         ),
@@ -223,7 +278,7 @@ class _CoachMarkLayer extends StatelessWidget {
               angle: bubbleBelow ? 3.14159 : 0,
               child: CustomPaint(
                 size: const Size(arrowWidth, arrowHeight),
-                painter: _ArrowPainter(color: primaryColor),
+                painter: _ArrowPainter(color: arrowColor),
               ),
             ),
           ),
@@ -255,11 +310,11 @@ class _CoachMarkLayer extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 10, 8),
         decoration: BoxDecoration(
-          color: primaryColor,
+          color: bubbleColor,
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
+              color: bubbleShadowColor,
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -272,8 +327,8 @@ class _CoachMarkLayer extends StatelessWidget {
             if (title != null) ...[
               Text(
                 title!,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: titleColor,
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                 ),
@@ -282,8 +337,8 @@ class _CoachMarkLayer extends StatelessWidget {
             ],
             Text(
               message,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: messageColor,
                 fontSize: 12.5,
                 height: 1.25,
               ),
@@ -303,13 +358,13 @@ class _CoachMarkLayer extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
+                    color: dismissButtonColor,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     dismissLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: dismissButtonTextColor,
                       fontWeight: FontWeight.w700,
                       fontSize: 11.5,
                     ),
@@ -332,12 +387,12 @@ class _CoachMarkLayer extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
         decoration: BoxDecoration(
-          color: primaryColor,
+          color: bubbleColor,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: border, width: 1),
+          border: Border.all(color: bubbleBorderColor, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
+              color: bubbleShadowColor,
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -355,8 +410,8 @@ class _CoachMarkLayer extends StatelessWidget {
                   if (title != null) ...[
                     Text(
                       title!,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: titleColor,
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
                         letterSpacing: 0.1,
@@ -367,7 +422,7 @@ class _CoachMarkLayer extends StatelessWidget {
                   Text(
                     message,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.95),
+                      color: messageColor.withValues(alpha: 0.95),
                       fontSize: 12.5,
                       height: 1.25,
                     ),
@@ -385,11 +440,8 @@ class _CoachMarkLayer extends StatelessWidget {
               child: Container(
                 width: 22,
                 height: 22,
-                decoration: BoxDecoration(
-                  // color: border,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.close, color: icon, size: 16),
+                decoration: const BoxDecoration(shape: BoxShape.circle),
+                child: Icon(Icons.close, color: closeIconColor, size: 16),
               ),
             ),
           ],
@@ -401,11 +453,12 @@ class _CoachMarkLayer extends StatelessWidget {
 
 class _ScrimPainter extends CustomPainter {
   final Rect highlight;
-  _ScrimPainter({required this.highlight});
+  final Color scrimColor;
+  _ScrimPainter({required this.highlight, required this.scrimColor});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scrim = Paint()..color = Colors.black.withValues(alpha: 0.55);
+    final scrim = Paint()..color = scrimColor;
     final path = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
       ..addRRect(RRect.fromRectAndRadius(highlight, const Radius.circular(12)))
@@ -414,7 +467,8 @@ class _ScrimPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ScrimPainter old) => old.highlight != highlight;
+  bool shouldRepaint(covariant _ScrimPainter old) =>
+      old.highlight != highlight || old.scrimColor != scrimColor;
 }
 
 class _ArrowPainter extends CustomPainter {
@@ -448,18 +502,33 @@ class CoachMarkPresentation extends DiscoveryPresentation {
   final String? dismissLabel;
   final CoachMarkPlacement placement;
   final CoachMarkStyle style;
-  final Color primaryColor;
-  final Color backgroundColor;
-  final Color border;
-  final Color icon;
+
+  /// See [DiscoveryCoachMark.bubbleColor].
+  final Color bubbleColor;
+
+  final Color bubbleBorderColor;
+  final Color? arrowColor;
+  final Color titleColor;
+  final Color messageColor;
+  final Color dismissButtonColor;
+  final Color dismissButtonTextColor;
+  final Color closeIconColor;
+  final Color scrimColor;
+  final Color bubbleShadowColor;
 
   const CoachMarkPresentation({
     required this.anchorKey,
     required this.message,
-    required this.primaryColor,
-    required this.backgroundColor,
-    required this.border,
-    required this.icon,
+    required this.bubbleColor,
+    this.bubbleBorderColor = const Color(0x33FFFFFF),
+    this.arrowColor,
+    this.titleColor = Colors.white,
+    this.messageColor = Colors.white,
+    this.dismissButtonColor = const Color(0x2EFFFFFF),
+    this.dismissButtonTextColor = Colors.white,
+    this.closeIconColor = Colors.white,
+    this.scrimColor = const Color(0x8C000000),
+    this.bubbleShadowColor = const Color(0x38000000),
     this.title,
     this.dismissLabel,
     this.placement = CoachMarkPlacement.auto,
@@ -473,10 +542,16 @@ class CoachMarkPresentation extends DiscoveryPresentation {
     DiscoveryContext ctx,
   ) {
     return DiscoveryCoachMark(
-      primaryColor: primaryColor,
-      backgroundColor: backgroundColor,
-      border: border,
-      icon: icon,
+      bubbleColor: bubbleColor,
+      bubbleBorderColor: bubbleBorderColor,
+      arrowColor: arrowColor,
+      titleColor: titleColor,
+      messageColor: messageColor,
+      dismissButtonColor: dismissButtonColor,
+      dismissButtonTextColor: dismissButtonTextColor,
+      closeIconColor: closeIconColor,
+      scrimColor: scrimColor,
+      bubbleShadowColor: bubbleShadowColor,
     ).show(
       context: context,
       anchorKey: anchorKey,

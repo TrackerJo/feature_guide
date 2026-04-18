@@ -1,71 +1,54 @@
 import 'package:flutter/material.dart';
 
-/// Semantic events screens emit to the [FeatureDiscoveryService].
+/// Context passed to a tip's eligibility check and its presentation.
 ///
-/// Triggers are decoupled from screen lifecycle so no screen fires a dialog
-/// directly — the service decides what (if anything) to surface based on
-/// registered tips, priority, session lock, and onboarding state.
-enum DiscoveryEvent {
-  onStartupTick,
-  onHomeResumed,
-  onFoodDetailViewed,
-  onMealDetailViewed,
-  onLikeFoodTapped,
-  onSaveMealTapped,
-  onDiningHallMenuLoaded,
-  onMealBuilt,
-  onCustomMealStarted,
-  onCustomFoodsMenuOpened,
-  onMealLogged,
-  onSessionReset,
-  onMealFoodSelected,
-  onMacroProgressViewed,
-}
-
-/// Lower value == evaluated first.
-/// Tips are only shown once per session-lock window, but critical tips ignore the lock and are always evaluated. This allows important tips (e.g. permissions) to break through the noise, while less-critical tips
-enum DiscoveryPriority { critical, standard, optional, tip }
-
-/// Category used by [TipLedger.onboardingComplete] to suppress
-/// feature-intro tips once the user has clearly onboarded.
-enum DiscoveryCategory {
-  featureIntro,
-  permission,
-  dataDisclosure,
-  versionUpdate,
-  feedback,
-  promo,
-}
-
-/// Context passed to tip evaluation and presentation.
-///
-/// Kept structurally compatible with the legacy `StartupDialogContext` so
-/// existing call sites continue to compile after the shim rewrite.
+/// Carries the generic runtime state a tip might need to decide whether to
+/// fire — the current app-launch count, plus an arbitrary [data] map for
+/// consumer-defined extras (e.g. a view counter, a feature flag).
 class DiscoveryContext {
+  /// Total app launches since install, incremented by the consumer app.
+  /// Useful for "show on the 3rd launch" style rules.
   final int appLaunches;
-  final int selectedIndex;
-  final Function? callback;
 
-  /// Arbitrary extras (e.g. foodDetailViewCount).
+  /// Arbitrary consumer-supplied extras. Prefer [read] for typed access.
   final Map<String, dynamic>? data;
 
-  const DiscoveryContext({
-    this.appLaunches = 0,
-    this.selectedIndex = 0,
-    this.callback,
-    this.data,
-  });
+  const DiscoveryContext({this.appLaunches = 0, this.data});
 
-  T? read<T>(String key) => data?[key] as T?;
+  /// Typed accessor for a value in [data]. Returns `null` if missing or if
+  /// the stored value is not a `T`.
+  T? read<T>(String key) {
+    final value = data?[key];
+    return value is T ? value : null;
+  }
 }
 
-/// Abstract presentation — modal, banner, coach mark, etc.
+/// Lower value == evaluated first when multiple tips match the same event.
+///
+/// - [critical]: always evaluated, ignores the session lock, and can chain
+///   with other critical tips in a single emit. Use for permission prompts
+///   and data-disclosure notices.
+/// - [standard]: respects the session lock; when it fires it claims the lock
+///   and ends the chain for that emit.
+/// - [optional]: behaves like [standard] but intended as a lower-weight tier
+///   for nice-to-have hints.
+/// - [tip]: respects the session lock AND is suppressed by a held lock. Use
+///   for lightweight coach marks that should never stack on top of something
+///   else the user just dismissed.
+enum DiscoveryPriority { critical, standard, optional, tip }
+
+/// Renders a tip. Subclass for a new presentation style, or use the built-in
+/// [ModalPresentation] / [InlinePresentation] escape hatches.
+///
+/// Presentations are intentionally untyped on the event parameter (they
+/// accept a raw [DiscoveryTip]) because a presentation's job is to render,
+/// not to reason about which consumer event triggered the tip.
 abstract class DiscoveryPresentation {
   const DiscoveryPresentation();
 
   /// Return `true` if the presentation actually rendered. A `false` return
-  /// (e.g. anchor missing for a coach mark) means the tip should not be
-  /// marked as seen.
+  /// (e.g. a coach mark whose anchor wasn't mounted in time) means the tip
+  /// should not be marked as seen and the emit loop may continue.
   Future<bool> present(
     BuildContext context,
     DiscoveryTip tip,
@@ -73,10 +56,9 @@ abstract class DiscoveryPresentation {
   );
 }
 
-/// Renders a [DefaultDialog]-style modal via `showDialog`.
-///
-/// Builder receives the dialog `BuildContext` and the emitting
-/// [DiscoveryContext] so the modal body can read `ctx.callback`, etc.
+/// Renders a modal dialog via `showDialog`. The [build] callback receives the
+/// dialog's `BuildContext` and the emitting [DiscoveryContext] so the modal
+/// body can read `ctx.data`, close itself, etc.
 class ModalPresentation extends DiscoveryPresentation {
   final Widget Function(BuildContext dialogContext, DiscoveryContext ctx) build;
   final bool barrierDismissible;
@@ -102,8 +84,8 @@ class ModalPresentation extends DiscoveryPresentation {
 }
 
 /// Escape hatch for tips whose presentation is already implemented elsewhere
-/// (e.g. an external service's `showX` method). Returns `true` if the run
-/// function actually presented something.
+/// (e.g. an existing `showMyCustomSheet` function). The [run] callback is
+/// responsible for rendering and returning `true` when something was shown.
 class InlinePresentation extends DiscoveryPresentation {
   final Future<bool> Function(BuildContext context, DiscoveryContext ctx) run;
 
@@ -117,40 +99,56 @@ class InlinePresentation extends DiscoveryPresentation {
   ) => run(context, ctx);
 }
 
-/// A single feature-discovery entry. Replaces the legacy `StartupDialog`.
-class DiscoveryTip {
+/// A single feature-discovery entry. Parameterized on [E] — the consumer-
+/// defined event type (typically an `enum`) used to match [triggers].
+///
+/// Example:
+/// ```dart
+/// enum AppEvent { onStartupTick, onProductViewed }
+///
+/// DiscoveryTip<AppEvent>(
+///   id: 'welcome_banner',
+///   priority: DiscoveryPriority.standard,
+///   triggers: {AppEvent.onStartupTick},
+///   shouldShow: (ctx) async => ctx.appLaunches >= 2,
+///   presentation: BannerPresentation(
+///     title: 'Welcome back!',
+///     body: 'Tap the star icon to favorite a product.',
+///     cardColor: Colors.white,
+///     accentColor: Colors.indigo,
+///   ),
+/// );
+/// ```
+class DiscoveryTip<E extends Object> {
+  /// Stable id used by [TipLedger] to remember whether the tip has been seen.
   final String id;
+
+  /// Evaluation priority. See [DiscoveryPriority].
   final DiscoveryPriority priority;
-  final DiscoveryCategory category;
 
   /// Sort key within a single priority bucket (lower = earlier).
   final int order;
 
   /// Events that trigger evaluation of this tip.
-  final Set<DiscoveryEvent> triggers;
+  final Set<E> triggers;
 
-  /// If true, tip is skipped once `ledger.hasSeen(id)` is true.
+  /// If true, the tip is skipped once `ledger.hasSeen(id)` is true.
   final bool oneShot;
 
-  /// Eligibility check run after the ledger + session gates pass.
+  /// Eligibility check run after the ledger and session gates pass. Return
+  /// `false` to skip this tip for the current emit without marking it seen.
   final Future<bool> Function(DiscoveryContext ctx) shouldShow;
 
-  /// The presentation to run when the tip wins.
+  /// How to render the tip when it wins.
   final DiscoveryPresentation presentation;
-
-  /// Optional hook — called before `presentation.present` (e.g. to write a
-  /// legacy SharedPrefs key during the migration window).
-  final Future<void> Function()? markAsSeenLegacy;
 
   const DiscoveryTip({
     required this.id,
     required this.priority,
-    required this.category,
     required this.triggers,
     required this.shouldShow,
     required this.presentation,
     this.order = 100,
     this.oneShot = true,
-    this.markAsSeenLegacy,
   });
 }

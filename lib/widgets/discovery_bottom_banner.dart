@@ -14,23 +14,60 @@ class DiscoveryBottomBanner extends StatelessWidget {
   final VoidCallback? onAction;
   final VoidCallback onDismiss;
   final IconData? icon;
-  final Color backgroundColor;
-  final Color primaryColor;
+
+  /// Fill color of the banner card.
+  final Color cardColor;
+
+  /// Accent color — drives the leading icon, action label, and (by default)
+  /// the border tint. Override the specific overrides below to break the tie.
+  final Color accentColor;
+
+  /// Color of the leading icon. Defaults to [accentColor].
+  final Color? iconColor;
+
+  /// Color of the action label text. Defaults to [accentColor].
+  final Color? actionLabelColor;
+
+  /// Border color around the card. Defaults to [accentColor] at 18% opacity.
+  final Color? borderColor;
+
+  /// Color of the title text. Defaults to the theme's titleSmall color.
+  final Color? titleColor;
+
+  /// Color of the body text. Defaults to the theme's bodySmall color.
+  final Color? bodyColor;
+
+  /// Color of the trailing close (✕) icon. Defaults to the theme's icon color.
+  final Color? closeIconColor;
+
+  /// Drop-shadow color behind the card.
+  final Color shadowColor;
 
   const DiscoveryBottomBanner({
     super.key,
     required this.title,
     required this.body,
     required this.onDismiss,
-    required this.backgroundColor,
-    required this.primaryColor,
+    required this.cardColor,
+    required this.accentColor,
     this.actionLabel,
     this.onAction,
     this.icon,
+    this.iconColor,
+    this.actionLabelColor,
+    this.borderColor,
+    this.titleColor,
+    this.bodyColor,
+    this.closeIconColor,
+    this.shadowColor = const Color(0x2E000000),
   });
 
   @override
   Widget build(BuildContext context) {
+    final resolvedBorderColor =
+        borderColor ?? accentColor.withValues(alpha: 0.18);
+    final resolvedIconColor = iconColor ?? accentColor;
+    final resolvedActionColor = actionLabelColor ?? accentColor;
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -39,19 +76,16 @@ class DiscoveryBottomBanner extends StatelessWidget {
           color: Colors.transparent,
           child: Container(
             decoration: BoxDecoration(
-              color: backgroundColor,
+              color: cardColor,
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.18),
+                  color: shadowColor,
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
               ],
-              border: Border.all(
-                color: primaryColor.withValues(alpha: 0.18),
-                width: 1,
-              ),
+              border: Border.all(color: resolvedBorderColor, width: 1),
             ),
             padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
             child: Row(
@@ -59,7 +93,7 @@ class DiscoveryBottomBanner extends StatelessWidget {
               children: [
                 Icon(
                   icon ?? Icons.lightbulb_outline,
-                  color: primaryColor,
+                  color: resolvedIconColor,
                   size: 22,
                 ),
                 const SizedBox(width: 12),
@@ -72,10 +106,16 @@ class DiscoveryBottomBanner extends StatelessWidget {
                         title,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: titleColor,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(body, style: Theme.of(context).textTheme.bodySmall),
+                      Text(
+                        body,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: bodyColor),
+                      ),
                       if (actionLabel != null && onAction != null) ...[
                         const SizedBox(height: 6),
                         GestureDetector(
@@ -88,7 +128,7 @@ class DiscoveryBottomBanner extends StatelessWidget {
                             actionLabel!,
                             style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(
-                                  color: primaryColor,
+                                  color: resolvedActionColor,
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -99,6 +139,7 @@ class DiscoveryBottomBanner extends StatelessWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
+                  color: closeIconColor,
                   onPressed: () {
                     HapticFeedback.lightImpact();
                     onDismiss();
@@ -126,17 +167,36 @@ class BannerPresentation extends DiscoveryPresentation {
   final void Function(DiscoveryContext ctx)? onAction;
   final IconData? icon;
   final Duration duration;
-  final Color backgroundColor;
-  final Color primaryColor;
+
+  /// See [DiscoveryBottomBanner.cardColor].
+  final Color cardColor;
+
+  /// See [DiscoveryBottomBanner.accentColor].
+  final Color accentColor;
+
+  final Color? iconColor;
+  final Color? actionLabelColor;
+  final Color? borderColor;
+  final Color? titleColor;
+  final Color? bodyColor;
+  final Color? closeIconColor;
+  final Color shadowColor;
 
   const BannerPresentation({
     required this.title,
     required this.body,
-    required this.backgroundColor,
-    required this.primaryColor,
+    required this.cardColor,
+    required this.accentColor,
     this.actionLabel,
     this.onAction,
     this.icon,
+    this.iconColor,
+    this.actionLabelColor,
+    this.borderColor,
+    this.titleColor,
+    this.bodyColor,
+    this.closeIconColor,
+    this.shadowColor = const Color(0x2E000000),
     this.duration = const Duration(seconds: 6),
   });
 
@@ -155,8 +215,15 @@ class BannerPresentation extends DiscoveryPresentation {
         icon: icon,
         onAction: onAction == null ? null : () => onAction!(ctx),
         onDismiss: () => entry?.dismiss(),
-        backgroundColor: backgroundColor,
-        primaryColor: primaryColor,
+        cardColor: cardColor,
+        accentColor: accentColor,
+        iconColor: iconColor,
+        actionLabelColor: actionLabelColor,
+        borderColor: borderColor,
+        titleColor: titleColor,
+        bodyColor: bodyColor,
+        closeIconColor: closeIconColor,
+        shadowColor: shadowColor,
       ),
       duration: duration,
       position: NotificationPosition.top,
