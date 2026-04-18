@@ -128,6 +128,7 @@ class _HomeScreenState extends State<_HomeScreen> {
     await TipLedger().clearSeen('welcome_banner');
     await TipLedger().clearSeen('bookmark_coach');
     await TipLedger().clearSeen('reset_badge');
+    await TipLedger().clearSeen('bookmark_badge');
     discovery.resetSession();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -169,11 +170,18 @@ class _HomeScreenState extends State<_HomeScreen> {
             const SizedBox(height: 24),
             // DiscoveryAnchor registers against anchorKey 'bookmarkBtn' so the
             // coach-mark in main() can find this widget.
-            IconButton(
-              onPressed: _openProduct,
-              icon: const DiscoveryAnchor(
-                anchorKey: 'bookmarkBtn',
-                child: Icon(Icons.bookmark_outline, size: 32),
+            DiscoveryBadgeWrapper(
+              tipId: 'bookmark_badge',
+              dotColor: Colors.redAccent,
+              child: IconButton(
+                onPressed: () async {
+                  await TipLedger().markSeen('bookmark_badge');
+                  _openProduct();
+                },
+                icon: const DiscoveryAnchor(
+                  anchorKey: 'bookmarkBtn',
+                  child: Icon(Icons.bookmark_outline, size: 32),
+                ),
               ),
             ),
           ],

@@ -1,6 +1,6 @@
 name: feature_guide
 description: "Feature-discovery toolkit for Flutter — tips, banners, coach marks, and badges with session-aware gating."
-version: 0.1.0
+version: 0.1.1
 
 repository: https://github.com/TrackerJo/feature_guide
 
